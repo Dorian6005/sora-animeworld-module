@@ -119,6 +119,21 @@ appear into `FALLBACK_DOMAINS` in `animeworld.js`.
    client-side because the site's `language=sub` filter is unreliable). Sora
    renders it as a text field on the module's settings page.
 
+## AnymeX compatibility
+
+The module also runs inside AnymeX (AnyMEX Sora extension), whose runtime
+differs from Sora's iOS JavaScriptCore in two ways that broke it at 1.1.0:
+
+1. **No `console` global** — AnymeX's QuickJS engine does not inject a console,
+   so plain `console.log()` threw `ReferenceError` mid-function. All logging now
+   goes through a guarded `safeLog()`.
+2. **`fetch` is aliased to `fetchv2`** and returns a Response-shaped object
+   instead of raw text. The legacy-fetch fallback now accepts both shapes
+   (`test/anymex-sim.mjs` proves the pipeline under an AnymeX-like host:
+   4-argument `fetchv2`, object `fetch`, no console).
+
+`npm run test:anymex` runs that simulation end-to-end.
+
 AnimeWorld's stream API returns direct MP4 links (`/api/episode/info?id=<code>&alt=0`)
 picked up by AVPlayer. Playback was verified through the harness (HTTP 200,
 `video/mp4`), not inside the app itself — run it on-device before trusting it

@@ -284,9 +284,9 @@ async function probeDomain(domain) {
         throw new Error("unexpected page");
     } catch (e) {
         try {
-            // Legacy helper (resolves the raw body) — some CDN errors break fetchv2 only.
-            var html = await fetch(baseFor(domain) + "/", { "User-Agent": USER_AGENT });
-            if (String(html).indexOf(NEEDLE) !== -1) return domain;
+            // Legacy helper — may be a raw string (Sora) or Response-shaped (AnymeX).
+            var html = await soraFetch(baseFor(domain) + "/", { "User-Agent": USER_AGENT });
+            if (html && String(html).indexOf(NEEDLE) !== -1) return domain;
         } catch (e2) {}
         return null;
     }
@@ -309,10 +309,10 @@ async function resolveBase() {
         var ok = await probeDomain(candidates[j]);
         if (ok) {
             resolvedDomain = ok;
-            console.log("AnimeWorld: using https://" + ok);
+        safeLog("AnimeWorld: using https://" + ok);
             return baseFor(ok);
         }
-        console.log("AnimeWorld: https://" + candidates[j] + " did not respond");
+        safeLog("AnimeWorld: https://" + candidates[j] + " did not respond");
     }
 
     throw new Error(
@@ -341,8 +341,25 @@ async function soraFetch(url, options) {
         }
         return String(res);
     } catch (e) {
-        console.log("fetchv2 failed (" + e + "), falling back for " + url);
-        return await fetch(url, headers);
+        safeLog("fetchv2 failed (" + e + "), falling back for " + url);
+        var legacy = await fetch(url, headers);
+        // Some hosts (AnymeX) alias legacy fetch to a Response-shaped object.
+        if (legacy && typeof legacy === "object" && typeof legacy.text === "function") {
+            return await legacy.text();
+        }
+        return legacy; // raw string on iOS JavaScriptCore
+    }
+}
+
+/**
+ * Safe logging: QuickJS engines (AnymeX) don't ship a console global,
+ * which used to throw ReferenceErrors straight through the module body.
+ */
+function safeLog(message) {
+    try {
+        if (typeof console !== "undefined" && console.log) console.log(message);
+    } catch (e) {
+        // cannot even log — silently drop
     }
 }
 
@@ -362,7 +379,7 @@ async function searchResults(keyword) {
     try {
         return await searchDomains(keyword);
     } catch (e) {
-        console.log("searchResults error: " + e);
+        safeLog("searchResults error: " + e);
         return JSON.stringify([]);
     }
 }
@@ -383,18 +400,18 @@ async function searchDomains(keyword) {
             // even when it is empty. Anything else (parked page, block page,
             // dead mirror) falls through to the next candidate domain.
             if (html.indexOf('class="film-list"') === -1) {
-                console.log("AnimeWorld: https://" + candidates[j] + " does not look like a search page");
+                safeLog("AnimeWorld: https://" + candidates[j] + " does not look like a search page");
                 continue;
             }
 
             resolvedDomain = candidates[j];
             var results = parseSearchResults(html, base);
 
-            console.log("AnimeWorld: " + results.length + ' results for "' + keyword + '" via https://' + candidates[j]);
+            safeLog("AnimeWorld: " + results.length + ' results for "' + keyword + '" via https://' + candidates[j]);
             return JSON.stringify(results);
         } catch (e) {
             lastSearchError = e;
-            console.log("AnimeWorld: https://" + candidates[j] + " failed (" + e + ")");
+            safeLog("AnimeWorld: https://" + candidates[j] + " failed (" + e + ")");
         }
     }
 
@@ -499,7 +516,7 @@ function languageAllows(isDub, title) {
 async function extractDetails(url) {
     try {
         var html = await soraFetch(url);
-        console.log("AnimeWorld: details page fetched, " + html.length + " chars");
+        safeLog("AnimeWorld: details page fetched, " + html.length + " chars");
 
         var ldJson = collectJsonLd(html);
 
@@ -554,7 +571,7 @@ async function extractDetails(url) {
         }
 
         if (!description && aliasesArr.length === 0 && !airdate) {
-            console.log("AnimeWorld: no details parsed from " + url);
+            safeLog("AnimeWorld: no details parsed from " + url);
         }
 
         return JSON.stringify([
@@ -565,7 +582,7 @@ async function extractDetails(url) {
             }
         ]);
     } catch (e) {
-        console.log("extractDetails error: " + e);
+        safeLog("extractDetails error: " + e);
         return JSON.stringify([]);
     }
 }
@@ -582,7 +599,7 @@ function collectJsonLd(html) {
             var entries = Array.isArray(parsed) ? parsed : [parsed];
             for (var j = 0; j < entries.length; j++) blocks.push(entries[j]);
         } catch (e) {
-            console.log("ld+json block " + i + " skipped (invalid JSON)");
+            safeLog("ld+json block " + i + " skipped (invalid JSON)");
         }
     }
     return blocks;
@@ -649,10 +666,10 @@ async function extractEpisodes(url) {
 
         // Episodes appear in range blocks; restore natural order.
         episodes.sort(function (a, b) { return a.number - b.number; });
-        console.log("AnimeWorld: " + episodes.length + " episodes from " + url);
+        safeLog("AnimeWorld: " + episodes.length + " episodes from " + url);
         return JSON.stringify(episodes);
     } catch (e) {
-        console.log("extractEpisodes error: " + e);
+        safeLog("extractEpisodes error: " + e);
         return JSON.stringify([]);
     }
 }
@@ -683,7 +700,7 @@ async function extractStreamUrl(url) {
 
         throw lastGrabberError || new Error("no grabber returned by AnimeWorld API");
     } catch (e) {
-        console.log("extractStreamUrl error: " + e);
+        safeLog("extractStreamUrl error: " + e);
         return null;
     }
 }
@@ -697,13 +714,13 @@ async function resolveGrabber(base, code, referer) {
         return toGrabberUrl(json && json.grabber) || null;
     } catch (e) {
         lastGrabberError = e;
-        console.log("resolveGrabber failed on " + base + ": " + e);
+        safeLog("resolveGrabber failed on " + base + ": " + e);
         return null;
     }
 }
 
 function buildStreamResult(streamUrl, referer) {
-    console.log("AnimeWorld: stream " + streamUrl.slice(0, 90));
+    safeLog("AnimeWorld: stream " + streamUrl.slice(0, 90));
     return JSON.stringify({
         stream: {
             streamUrl: streamUrl,

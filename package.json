@@ -7,6 +7,7 @@
     "test": "node test/run-module.mjs modules/internet-archive dracula",
     "test:archive": "node test/run-module.mjs modules/internet-archive dracula",
     "test:animeworld": "node test/run-module.mjs modules/animeworld \"one piece\"",
+    "test:anymex": "node test/anymex-sim.mjs",
     "test:module": "node test/run-module.mjs",
     "serve": "node test/serve.mjs"
   }
