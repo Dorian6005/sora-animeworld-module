@@ -2,7 +2,7 @@
   "sourceName": "AnimeWorld",
   "iconUrl": "https://raw.githubusercontent.com/cranci1/Ryu/d48d716ec6c5ef9ae7b3711c117f920b0c7eb1ce/Ryu/Assets.xcassets/Sources/AnimeWorld.imageset/animeworld.png",
   "author": {
-    "name": "Your Name",
+    "name": "Dorian6005",
     "icon": "https://raw.githubusercontent.com/cranci1/Ryu/d48d716ec6c5ef9ae7b3711c117f920b0c7eb1ce/Ryu/Assets.xcassets/Sources/AnimeWorld.imageset/animeworld.png"
   },
   "description": "Italian fansub/dub anime streaming from AnimeWorld. Domain rotates; the module probes known official domains automatically and the primary one is a module setting.",
@@ -12,7 +12,7 @@
   "quality": "Various",
   "baseUrl": "https://animeworld.ac/",
   "searchBaseUrl": "https://www.animeworld.ac/search?keyword=%s",
-  "scriptUrl": "https://raw.githubusercontent.com/YOUR_GITHUB_USER/sora-modules/main/modules/animeworld/animeworld.js",
+  "scriptUrl": "https://raw.githubusercontent.com/Dorian6005/sora-animeworld-module/main/modules/animeworld/animeworld.js",
   "type": "anime",
   "downloadSupport": true,
   "asyncJS": true,
