@@ -378,12 +378,22 @@ function isAnymex() {
 }
 
 /** In AnymeX, an empty episode list is an endless spinner — show why instead. */
-function episodesOrDiagnostic(episodes, url) {
+function episodesOrDiagnostic(episodes, url, message) {
     if (episodes.length || !isAnymex()) return JSON.stringify(episodes);
-    return JSON.stringify([
-        { href: url, number: 1, title: "⚠ " + (DIAG || "no episodes") + " | last request: " + (lastFetch || "none") }
-    ]);
+    var text = message || (DIAG || "no episodes") + " | last request: " + (lastFetch || "none");
+    return JSON.stringify([{ href: url, number: 1, title: "⚠ " + text }]);
 }
+
+/**
+ * When AnymeX can't match a title it falls back to a blank entry with id "0"
+ * and still asks for its episodes/details.
+ */
+function isPageUrl(url) {
+    return /^https?:\/\//i.test(String(url || ""));
+}
+
+var NO_MATCH_MESSAGE =
+    "AnymeX found no AnimeWorld match for this title. Tap \"Wrong Title?\" and search it yourself (without apostrophes).";
 
 /**
  * Safe logging: QuickJS engines (AnymeX) don't ship a console global,
@@ -411,11 +421,38 @@ function episodeCode(url) {
 /** Public entry point — Sora calls this; never throws, returns [] on failure. */
 async function searchResults(keyword) {
     try {
-        return await searchDomains(keyword);
+        var queries = searchQueries(keyword);
+        var json = "[]";
+        for (var i = 0; i < queries.length; i++) {
+            json = await searchDomains(queries[i]);
+            if (JSON.parse(json).length) return json;
+        }
+        return json;
     } catch (e) {
         diagNote("searchResults failed", String(e));
         return JSON.stringify([]);
     }
+}
+
+/**
+ * The keyword, then looser variants tried only when it finds nothing.
+ * AnymeX can't pass apostrophes to modules, so "L'attacco dei Giganti"
+ * reaches us as "lattacco dei giganti", which AnimeWorld doesn't match:
+ *   1. strip a merged Italian elision from the first word: "lattacco" -> "attacco"
+ *   2. drop the first word (3+ words only): "dei giganti"
+ */
+function searchQueries(keyword) {
+    var original = String(keyword || "").replace(/\s+/g, " ").trim();
+    var words = original.split(" ");
+    var elision = /^(?:dell|dall|nell|sull|quest|all|un|l|d)['’]?(?=[aeiouhàèéìòù])/i;
+
+    var first = words[0].replace(elision, "");
+    var unelided = [first.length >= 3 ? first : words[0]].concat(words.slice(1)).join(" ");
+
+    var queries = [original];
+    if (unelided !== original) queries.push(unelided);
+    if (words.length >= 3) queries.push(words.slice(1).join(" "));
+    return queries;
 }
 
 async function searchDomains(keyword) {
@@ -548,6 +585,7 @@ function languageAllows(isDub, title) {
 /* ================================================================== */
 
 async function extractDetails(url) {
+    if (!isPageUrl(url)) return JSON.stringify([]);
     try {
         var html = await soraFetch(url);
         safeLog("AnimeWorld: details page fetched, " + html.length + " chars");
@@ -661,6 +699,7 @@ function plainFieldFromJsonLd(blocks, field) {
 /* ================================================================== */
 
 async function extractEpisodes(url) {
+    if (!isPageUrl(url)) return episodesOrDiagnostic([], String(url), NO_MATCH_MESSAGE);
     try {
         var html = await soraFetch(url);
 
