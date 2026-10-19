@@ -743,14 +743,22 @@ async function resolveGrabber(base, code, referer) {
     }
 }
 
+/**
+ * Uses the `streams` array form on purpose: Sora accepts it, and it is the
+ * only object form AnymeX reads correctly. AnymeX turns `{stream: {...}}`
+ * into the literal text "{streamUrl: ..., headers: ...}" and then tries to
+ * play that text as the URL.
+ */
 function buildStreamResult(streamUrl, referer) {
     safeLog("AnimeWorld: stream " + streamUrl.slice(0, 90));
     return JSON.stringify({
-        stream: {
-            streamUrl: streamUrl,
-            headers: { "User-Agent": USER_AGENT, "Referer": referer },
-            title: "AnimeWorld"
-        }
+        streams: [
+            {
+                title: "AnimeWorld",
+                streamUrl: streamUrl,
+                headers: { "User-Agent": USER_AGENT, "Referer": referer }
+            }
+        ]
     });
 }
 
