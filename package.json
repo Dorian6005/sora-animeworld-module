@@ -1,0 +1,13 @@
+{
+  "name": "sora-modules",
+  "private": true,
+  "type": "module",
+  "description": "Sora/Sulfur module development kit",
+  "scripts": {
+    "test": "node test/run-module.mjs modules/internet-archive dracula",
+    "test:archive": "node test/run-module.mjs modules/internet-archive dracula",
+    "test:animeworld": "node test/run-module.mjs modules/animeworld \"one piece\"",
+    "test:module": "node test/run-module.mjs",
+    "serve": "node test/serve.mjs"
+  }
+}

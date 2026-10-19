@@ -1,0 +1,24 @@
+{
+  "sourceName": "My Source",
+  "iconUrl": "https://example.com/icon.png",
+  "author": {
+    "name": "Your Name",
+    "icon": "https://example.com/author.png"
+  },
+  "description": "What this module scrapes.",
+  "version": "1.0.0",
+  "language": "English",
+  "streamType": "HLS",
+  "quality": "1080p",
+  "baseUrl": "https://example.com/",
+  "searchBaseUrl": "https://example.com/search?q=%s",
+  "scriptUrl": "https://raw.githubusercontent.com/YOUR_GITHUB_USER/sora-modules/main/modules/my-source/module.js",
+  "type": "movies",
+  "downloadSupport": false,
+  "asyncJS": true,
+  "streamAsyncJS": false,
+  "softsub": false,
+  "multiStream": false,
+  "multiSubs": false,
+  "novel": false
+}

@@ -1,0 +1,24 @@
+{
+  "sourceName": "Internet Archive",
+  "iconUrl": "https://archive.org/favicon.ico",
+  "author": {
+    "name": "Your Name",
+    "icon": "https://archive.org/favicon.ico"
+  },
+  "description": "Public-domain and openly licensed feature films from archive.org.",
+  "version": "1.0.0",
+  "language": "English",
+  "streamType": "MP4",
+  "quality": "Various",
+  "baseUrl": "https://archive.org/",
+  "searchBaseUrl": "https://archive.org/advancedsearch.php?q=%s&output=json",
+  "scriptUrl": "https://raw.githubusercontent.com/YOUR_GITHUB_USER/sora-modules/main/modules/internet-archive/internet-archive.js",
+  "type": "movies",
+  "downloadSupport": true,
+  "asyncJS": true,
+  "streamAsyncJS": false,
+  "softsub": false,
+  "multiStream": false,
+  "multiSubs": false,
+  "novel": false
+}
