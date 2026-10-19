@@ -39,9 +39,8 @@ var NEEDLE = "AnimeWorld"; // marker used to recognise a working mirror
 var lastGrabberError = null; // last /api/episode/info failure, for better error text
 var lastSearchError = null; // last search failure across the domain pool
 
-/* Diagnostics: the engine persists across calls in AnymeX's runtime, so
- * failures recorded here are surfaced by the next extractDetails() call
- * inside the description text (visible on the media page). */
+/* Diagnostics: last failure, shown in AnymeX as a placeholder episode
+ * (see episodesOrDiagnostic) since modules have no console there. */
 var DIAG = "";
 function diagNote(stage, message) {
     DIAG = "AnimeWorld diag — " + stage + ": " + message;
@@ -607,6 +606,8 @@ async function extractDetails(url) {
             description = description.replace(/^Trama di .*?:\s*/i, "");
             if (!description) description = plainFieldFromJsonLd(ldJson, "description") || "";
         }
+        // The site double-encodes some entities ("&amp;#x27;"), so decode again.
+        description = decodeEntities(description).replace(/[  ]+/g, " ").trim();
         if (description.length > 900) {
             description = description.slice(0, 900).replace(/\s+\S*$/, "") + "…";
         }
@@ -646,19 +647,61 @@ async function extractDetails(url) {
             safeLog("AnimeWorld: no details parsed from " + url);
         }
 
+        var meta = readMetaList(html);
+        description = description || "No description available.";
+
+        // AnymeX ignores status/episodes/airdate from Sora modules and shows
+        // "??" instead, so put them at the top of the synopsis there.
+        if (isAnymex()) {
+            var facts = [];
+            var wanted = ["Stato", "Episodi", "Durata", "Data di Uscita", "Studio", "Voto"];
+            for (var w = 0; w < wanted.length; w++) {
+                if (meta.fields[wanted[w]]) facts.push(wanted[w] + ": " + meta.fields[wanted[w]]);
+            }
+            if (facts.length) description = facts.join(" · ") + "\n\n" + description;
+        }
+
         return JSON.stringify([
             {
-                description:
-                    (description || "No description available.") +
-                    (DIAG ? " ‖ " + DIAG : ""),
+                description: description,
                 aliases: aliasesArr.length ? aliasesArr.join(" · ") : "N/A",
-                airdate: airdate || "Unknown"
+                airdate: airdate || "Unknown",
+                genre: meta.genres
             }
         ]);
     } catch (e) {
         diagNote("extractDetails failed", String(e));
         return JSON.stringify([]);
     }
+}
+
+/**
+ * The info lists (<dl class="meta">): "Data di Uscita", "Studio", "Genere",
+ * "Voto", "Durata", "Episodi", "Stato"... dt/dd pairs, matched in order.
+ * Returns { fields: { label: text }, genres: [..] }.
+ */
+function readMetaList(html) {
+    var fields = {};
+    var genres = [];
+    var dls = findTags(html, "dl");
+    for (var i = 0; i < dls.length; i++) {
+        if (classList(dls[i].attrs).indexOf("meta") === -1) continue;
+        var dts = findTags(dls[i].inner, "dt");
+        var dds = findTags(dls[i].inner, "dd");
+        for (var j = 0; j < dts.length && j < dds.length; j++) {
+            var label = innerText(dts[j].inner).replace(/:\s*$/, "");
+            var value = innerText(dds[j].inner).replace(/\s+\/\s+/g, "/");
+            if (label && value && fields[label] === undefined) fields[label] = value;
+            if (label === "Genere") {
+                var links = findTags(dds[j].inner, "a");
+                for (var k = 0; k < links.length; k++) {
+                    var g = innerText(links[k].inner);
+                    if (g) genres.push(g);
+                }
+            }
+        }
+    }
+    return { fields: fields, genres: genres };
 }
 
 /** Every <script type="application/ld+json"> that parses cleanly. */
