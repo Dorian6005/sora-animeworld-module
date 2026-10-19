@@ -39,6 +39,15 @@ var NEEDLE = "AnimeWorld"; // marker used to recognise a working mirror
 var lastGrabberError = null; // last /api/episode/info failure, for better error text
 var lastSearchError = null; // last search failure across the domain pool
 
+/* Diagnostics: the engine persists across calls in AnymeX's runtime, so
+ * failures recorded here are surfaced by the next extractDetails() call
+ * inside the description text (visible on the media page). */
+var DIAG = "";
+function diagNote(stage, message) {
+    DIAG = "AnimeWorld diag — " + stage + ": " + message;
+    safeLog(DIAG);
+}
+
 var resolvedDomain = null; // cached for the lifetime of one script load
 
 /* ================================================================== */
@@ -379,7 +388,7 @@ async function searchResults(keyword) {
     try {
         return await searchDomains(keyword);
     } catch (e) {
-        safeLog("searchResults error: " + e);
+        diagNote("searchResults failed", String(e));
         return JSON.stringify([]);
     }
 }
@@ -576,13 +585,15 @@ async function extractDetails(url) {
 
         return JSON.stringify([
             {
-                description: description || "No description available.",
+                description:
+                    (description || "No description available.") +
+                    (DIAG ? " ‖ " + DIAG : ""),
                 aliases: aliasesArr.length ? aliasesArr.join(" · ") : "N/A",
                 airdate: airdate || "Unknown"
             }
         ]);
     } catch (e) {
-        safeLog("extractDetails error: " + e);
+        diagNote("extractDetails failed", String(e));
         return JSON.stringify([]);
     }
 }
@@ -667,9 +678,22 @@ async function extractEpisodes(url) {
         // Episodes appear in range blocks; restore natural order.
         episodes.sort(function (a, b) { return a.number - b.number; });
         safeLog("AnimeWorld: " + episodes.length + " episodes from " + url);
+
+        if (episodes.length === 0) {
+            // Help on-device debugging: report what we actually received.
+            diagNote(
+                "episodes empty",
+                "url=" + url +
+                " html " + html.length + "B" +
+                ", li=" + lis.length +
+                ", hasEpisodeLi=" + (String(html).indexOf('class="episode"') !== -1) +
+                ", hasFilmList=" + (String(html).indexOf("film-list") !== -1) +
+                ", looksCloudflare=" + /Just a moment|Attention Required|cf-browser-verification/i.test(html)
+            );
+        }
         return JSON.stringify(episodes);
     } catch (e) {
-        safeLog("extractEpisodes error: " + e);
+        diagNote("extractEpisodes failed", String(e));
         return JSON.stringify([]);
     }
 }
