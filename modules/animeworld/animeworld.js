@@ -475,7 +475,10 @@ async function searchDomains(keyword) {
             }
 
             resolvedDomain = candidates[j];
-            var results = parseSearchResults(html, base);
+            var parsed = parseSearchResults(html, base);
+            var results = isAnymex()
+                ? adaptResultsForAnymex(parsed, keyword)
+                : parsed.map(function (r) { return { title: r.title, image: r.image, href: r.href }; });
 
             safeLog("AnimeWorld: " + results.length + ' results for "' + keyword + '" via https://' + candidates[j]);
             return JSON.stringify(results);
@@ -565,11 +568,57 @@ function parseSearchResults(html, base) {
 
         if (!languageAllows(isDub, title)) continue;
 
+        // Original/alternate name (romaji or English) — used for AnymeX matching.
+        var altTitle = name ? decodeEntities(name.attrs["data-jtitle"] || "").trim() : "";
+
         seen[href] = true;
-        results.push({ title: title, image: image, href: href });
+        results.push({ title: title, image: image, href: href, altTitle: altTitle });
     }
 
     return results;
+}
+
+/** Lowercase words without punctuation or "(TV)", for comparing names. */
+function nameWords(text) {
+    return String(text || "")
+        .toLowerCase()
+        .replace(/\(tv\)/g, " ")
+        .replace(/[^a-z0-9àèéìòù]+/g, " ")
+        .trim();
+}
+
+/** Share of words two names have in common (0..1). */
+function nameSimilarity(a, b) {
+    var wa = nameWords(a).split(" ");
+    var wb = nameWords(b).split(" ");
+    var common = 0;
+    for (var i = 0; i < wa.length; i++) if (wa[i] && wb.indexOf(wa[i]) !== -1) common++;
+    var total = wa.length + wb.length - common;
+    return total ? common / total : 0;
+}
+
+/**
+ * AnymeX matches a source to an AniList entry by comparing its English and
+ * romaji titles with ours, and takes the first result scoring 0.98 or more.
+ * AnimeWorld titles are often Italian ("L'attacco dei Giganti"), so:
+ *   - show whichever of the Italian title / alternate name is closer to the
+ *     query (the query is the AniList title being matched);
+ *   - move exact name matches to the top, so a sequel or movie with a
+ *     near-identical name isn't picked before the right entry.
+ */
+function adaptResultsForAnymex(results, keyword) {
+    var wanted = nameWords(keyword);
+    var exact = [];
+    var rest = [];
+    for (var i = 0; i < results.length; i++) {
+        var r = results[i];
+        var alt = r.altTitle ? r.altTitle.replace(/\s*\(TV\)/i, "") : "";
+        var title = alt && nameSimilarity(alt, keyword) > nameSimilarity(r.title, keyword) ? alt : r.title;
+        var item = { title: title, image: r.image, href: r.href };
+        var isExact = nameWords(r.title) === wanted || (alt && nameWords(alt) === wanted);
+        (isExact ? exact : rest).push(item);
+    }
+    return exact.concat(rest);
 }
 
 /** Site-side filter is guarded by a client check with the same rules. */
