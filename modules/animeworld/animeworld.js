@@ -329,9 +329,13 @@ async function resolveBase() {
     );
 }
 
+/* Last request outcome, reported by the AnymeX diagnostics below. */
+var lastFetch = "";
+
 async function soraFetch(url, options) {
     options = options || {};
     var headers = options.headers || { "User-Agent": USER_AGENT };
+    var started = Date.now();
 
     try {
         var res = await fetchv2(
@@ -345,19 +349,40 @@ async function soraFetch(url, options) {
         if (res && res.error) throw new Error(res.error);
         if (res && typeof res.text === "function") {
             var body = await res.text();
+            lastFetch = "HTTP " + res.status + ", " + String(body).length + " chars, " + (Date.now() - started) + " ms";
             if (res.status && res.status >= 400) throw new Error("HTTP " + res.status);
             return body;
         }
+        lastFetch = "raw " + String(res).length + " chars";
         return String(res);
     } catch (e) {
+        lastFetch = "fetchv2 error: " + e + " (" + (Date.now() - started) + " ms)";
         safeLog("fetchv2 failed (" + e + "), falling back for " + url);
         var legacy = await fetch(url, headers);
         // Some hosts (AnymeX) alias legacy fetch to a Response-shaped object.
         if (legacy && typeof legacy === "object" && typeof legacy.text === "function") {
-            return await legacy.text();
+            var legacyBody = await legacy.text();
+            lastFetch += "; retry HTTP " + legacy.status + ", " + String(legacyBody).length + " chars";
+            return legacyBody;
         }
         return legacy; // raw string on iOS JavaScriptCore
     }
+}
+
+/**
+ * AnymeX defines a global `fjs` bridge object; Sora does not. Used to show
+ * failure reasons on screen in AnymeX only, where there is no module console.
+ */
+function isAnymex() {
+    return typeof fjs !== "undefined";
+}
+
+/** In AnymeX, an empty episode list is an endless spinner — show why instead. */
+function episodesOrDiagnostic(episodes, url) {
+    if (episodes.length || !isAnymex()) return JSON.stringify(episodes);
+    return JSON.stringify([
+        { href: url, number: 1, title: "⚠ " + (DIAG || "no episodes") + " | last request: " + (lastFetch || "none") }
+    ]);
 }
 
 /**
@@ -688,14 +713,20 @@ async function extractEpisodes(url) {
                 ", li=" + lis.length +
                 ", hasEpisodeLi=" + (String(html).indexOf('class="episode"') !== -1) +
                 ", hasFilmList=" + (String(html).indexOf("film-list") !== -1) +
-                ", looksCloudflare=" + /Just a moment|Attention Required|cf-browser-verification/i.test(html)
+                ", looksCloudflare=" + /Just a moment|Attention Required|cf-browser-verification/i.test(html) +
+                ", page title=" + JSON.stringify(pageTitle(html))
             );
         }
-        return JSON.stringify(episodes);
+        return episodesOrDiagnostic(episodes, url);
     } catch (e) {
         diagNote("extractEpisodes failed", String(e));
-        return JSON.stringify([]);
+        return episodesOrDiagnostic([], url);
     }
+}
+
+function pageTitle(html) {
+    var titles = findTags(String(html), "title");
+    return titles.length ? innerText(titles[0].inner).slice(0, 80) : "";
 }
 
 /* ================================================================== */
